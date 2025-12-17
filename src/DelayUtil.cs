@@ -1,8 +1,9 @@
 ﻿using Microsoft.Extensions.Logging;
+using Soenneker.Utils.Random;
 using System;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Soenneker.Utils.Random;
 
 namespace Soenneker.Utils.Delay;
 
@@ -11,12 +12,37 @@ namespace Soenneker.Utils.Delay;
 /// </summary>
 public static class DelayUtil
 {
+    private const double _msToSeconds = 1d / 1000d;
+
+    // Precompiled logging delegates to avoid params object[] allocations + boxing.
+    private static readonly Action<ILogger, double, Exception?> _logDelaySeconds =
+        LoggerMessage.Define<double>(LogLevel.Information, new EventId(1, nameof(Delay)), "Delaying for {time}s...");
+
+    private static readonly Action<ILogger, double, int, Exception?> _logBackoffSecondsAttempt = LoggerMessage.Define<double, int>(LogLevel.Information,
+        new EventId(2, nameof(DelayWithBackoff)), "Exponential backoff delay for {time}s (attempt {attempt})...");
+
+    private static readonly Action<ILogger, DateTime, double, Exception?> _logDelayUntil =
+        LoggerMessage.Define<DateTime, double>(LogLevel.Information, new EventId(3, nameof(DelayUntil)), "Delaying until {time} UTC (~{seconds}s)...");
+
+    private static readonly Action<ILogger, Exception?> _logTargetAlreadyPassed = LoggerMessage.Define(LogLevel.Information, new EventId(4, nameof(DelayUntil)),
+        "Target time already passed; returning immediately.");
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void LogDelaySeconds(ILogger? logger, double seconds)
+    {
+        if (logger is null || !logger.IsEnabled(LogLevel.Information))
+            return;
+
+        _logDelaySeconds(logger, seconds, null);
+    }
+
     /// <summary>
     /// Asynchronously delays execution for the specified time.
     /// </summary>
     public static Task Delay(int milliseconds, ILogger? logger = null, CancellationToken cancellationToken = default)
     {
-        logger?.LogInformation("Delaying for {time}s...", milliseconds / 1000.0);
+        // Task.Delay(int, token) only accepts int; negative/zero completes immediately.
+        LogDelaySeconds(logger, milliseconds * _msToSeconds);
         return Task.Delay(milliseconds, cancellationToken);
     }
 
@@ -25,7 +51,8 @@ public static class DelayUtil
     /// </summary>
     public static Task Delay(TimeSpan delay, ILogger? logger = null, CancellationToken cancellationToken = default)
     {
-        logger?.LogInformation("Delaying for {time}s...", delay.TotalSeconds);
+        // Prefer the TimeSpan overload; it handles large values safely.
+        LogDelaySeconds(logger, delay.TotalSeconds);
         return Task.Delay(delay, cancellationToken);
     }
 
@@ -34,7 +61,7 @@ public static class DelayUtil
     /// </summary>
     public static void DelaySync(int milliseconds, ILogger? logger = null)
     {
-        logger?.LogInformation("Blocking for {time}s...", milliseconds / 1000.0);
+        LogDelaySeconds(logger, milliseconds * _msToSeconds);
         Thread.Sleep(milliseconds);
     }
 
@@ -43,39 +70,56 @@ public static class DelayUtil
     /// </summary>
     public static Task DelayWithJitter(int baseMilliseconds, ILogger? logger = null, double jitterFactor = 0.5, CancellationToken cancellationToken = default)
     {
-        // jitterFactor ∈ [0,1]: jitterMs = random * baseMs * jitterFactor
-        double jitter = RandomUtil.NextDouble() * baseMilliseconds * jitterFactor;
-        int finalDelay = baseMilliseconds + (int) jitter;
+        // jitterFactor ∈ [0,1] (we’ll tolerate outside values by clamping).
+        if (jitterFactor <= 0 || baseMilliseconds <= 0)
+        {
+            LogDelaySeconds(logger, baseMilliseconds * _msToSeconds);
+            return Task.Delay(baseMilliseconds, cancellationToken);
+        }
 
-        logger?.LogInformation("Delaying with jitter for {time}s...", finalDelay / 1000.0);
+        if (jitterFactor > 1)
+            jitterFactor = 1;
 
+        // Use long to avoid overflow on multiplication.
+        // jitterMs = random[0,1) * baseMs * jitterFactor
+        var jitterMs = (int)(RandomUtil.NextDouble() * (baseMilliseconds * jitterFactor));
+        int finalDelay = baseMilliseconds + jitterMs;
+
+        LogDelaySeconds(logger, finalDelay * _msToSeconds);
         return Task.Delay(finalDelay, cancellationToken);
     }
 
     /// <summary>
-    /// Asynchronously delays execution using an integer‐based exponential backoff strategy.
+    /// Asynchronously delays execution using an integer-based exponential backoff strategy.
     /// </summary>
     public static Task DelayWithBackoff(int attempt, ILogger? logger = null, int baseDelayMs = 1000, int maxDelayMs = 30000,
         CancellationToken cancellationToken = default)
     {
-        // Compute baseDelayMs * 2^attempt without Math.Pow (all ints).
-        int delay = baseDelayMs;
-        for (var i = 0; i < attempt; i++)
+        if (attempt <= 0)
         {
-            // If shifting would exceed maxDelayMs, clamp and break.
-            if (delay >= (maxDelayMs >> 1))
-            {
-                delay = maxDelayMs;
-                break;
-            }
+            int d0 = baseDelayMs <= maxDelayMs ? baseDelayMs : maxDelayMs;
+            if (logger is not null && logger.IsEnabled(LogLevel.Information))
+                _logBackoffSecondsAttempt(logger, d0 * _msToSeconds, attempt, null);
 
-            delay <<= 1; // multiply by 2
+            return Task.Delay(d0, cancellationToken);
         }
 
-        if (delay > maxDelayMs)
-            delay = maxDelayMs;
+        if (baseDelayMs <= 0)
+            baseDelayMs = 1;
 
-        logger?.LogInformation("Exponential backoff delay for {time}s (attempt {attempt})...", delay / 1000.0, attempt);
+        if (maxDelayMs <= 0)
+            maxDelayMs = 1;
+
+        // Saturating left shift using long to avoid overflow.
+        // delay = min(maxDelayMs, baseDelayMs * 2^attempt)
+        long delayLong = (long)baseDelayMs << attempt;
+        if (delayLong > maxDelayMs)
+            delayLong = maxDelayMs;
+
+        int delay = (int)delayLong;
+
+        if (logger is not null && logger.IsEnabled(LogLevel.Information))
+            _logBackoffSecondsAttempt(logger, delay * _msToSeconds, attempt, null);
 
         return Task.Delay(delay, cancellationToken);
     }
@@ -85,8 +129,17 @@ public static class DelayUtil
     /// </summary>
     public static Task DelaySeconds(double seconds, ILogger? logger = null, CancellationToken cancellationToken = default)
     {
-        var ms = (int) (seconds * 1000);
-        logger?.LogInformation("Delaying for {time}s...", seconds);
+        if (seconds <= 0)
+        {
+            LogDelaySeconds(logger, seconds);
+            return Task.CompletedTask;
+        }
+
+        // Convert safely; Task.Delay(int) caps at int.MaxValue ms.
+        double msDouble = seconds * 1000d;
+        int ms = msDouble >= int.MaxValue ? int.MaxValue : (int)msDouble;
+
+        LogDelaySeconds(logger, seconds);
         return Task.Delay(ms, cancellationToken);
     }
 
@@ -100,12 +153,17 @@ public static class DelayUtil
 
         if (targetUtc <= now)
         {
-            logger?.LogInformation("Target time already passed; returning immediately.");
+            if (logger is not null && logger.IsEnabled(LogLevel.Information))
+                _logTargetAlreadyPassed(logger, null);
+
             return Task.CompletedTask;
         }
 
         TimeSpan toWait = targetUtc - now;
-        logger?.LogInformation("Delaying until {time} UTC (~{seconds}s)...", targetUtc, toWait.TotalSeconds);
+
+        if (logger is not null && logger.IsEnabled(LogLevel.Information))
+            _logDelayUntil(logger, targetUtc, toWait.TotalSeconds, null);
+
         return Task.Delay(toWait, cancellationToken);
     }
 
@@ -118,13 +176,14 @@ public static class DelayUtil
 
         if (span <= 0)
         {
-            logger?.LogInformation("Delaying for {time}s...", minMilliseconds / 1000.0);
+            LogDelaySeconds(logger, minMilliseconds * _msToSeconds);
             return Task.Delay(minMilliseconds, cancellationToken);
         }
 
         int jitter = RandomUtil.Next(span + 1);
         int finalDelay = minMilliseconds + jitter;
-        logger?.LogInformation("Delaying randomly for {time}s...", finalDelay / 1000.0);
+
+        LogDelaySeconds(logger, finalDelay * _msToSeconds);
         return Task.Delay(finalDelay, cancellationToken);
     }
 }
