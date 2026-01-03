@@ -125,14 +125,14 @@ public static class DelayUtil
     }
 
     /// <summary>
-    /// Asynchronously delays until the specified UTC DateTime.
+    /// Asynchronously delays until the specified UTC DateTimeOffset.
     /// If targetUtc ≤ now, returns immediately.
     /// </summary>
-    public static Task DelayUntil(DateTime targetUtc, ILogger? logger = null, CancellationToken cancellationToken = default)
+    public static Task DelayUntil(DateTimeOffset target, ILogger? logger = null, CancellationToken cancellationToken = default)
     {
-        DateTime now = DateTime.UtcNow;
+        DateTimeOffset now = DateTimeOffset.UtcNow;
 
-        if (targetUtc <= now)
+        if (target <= now)
         {
             if (logger is not null)
                 DelayLog.TargetAlreadyPassed(logger);
@@ -140,10 +140,10 @@ public static class DelayUtil
             return Task.CompletedTask;
         }
 
-        TimeSpan toWait = targetUtc - now;
+        TimeSpan toWait = target - now;
 
         if (logger is not null)
-            DelayLog.DelayingUntil(logger, targetUtc, toWait.TotalSeconds);
+            DelayLog.DelayingUntil(logger, target, toWait.TotalSeconds);
 
         return Task.Delay(toWait, cancellationToken);
     }

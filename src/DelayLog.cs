@@ -18,7 +18,7 @@ internal static partial class DelayLog
     public static partial void BackoffDelay(ILogger logger, double time, int attempt);
 
     [LoggerMessage(EventId = 5, Level = LogLevel.Information, Message = "Delaying until {time} UTC (~{seconds}s)...")]
-    public static partial void DelayingUntil(ILogger logger, DateTime time, double seconds);
+    public static partial void DelayingUntil(ILogger logger, DateTimeOffset time, double seconds);
 
     [LoggerMessage(EventId = 6, Level = LogLevel.Information, Message = "Target time already passed; returning immediately.")]
     public static partial void TargetAlreadyPassed(ILogger logger);
