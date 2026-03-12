@@ -25,7 +25,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\src\Soenneker.Utils.Delay.csproj" />
+        <ProjectReference Include="..\..\src\Soenneker.Utils.Delay\Soenneker.Utils.Delay.csproj" />
     </ItemGroup>
 
     <ItemGroup>
