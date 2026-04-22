@@ -38,7 +38,7 @@ jobs:
         run: dotnet build test/Soenneker.Utils.Delay.Tests/Soenneker.Utils.Delay.Tests.csproj --configuration Release --no-restore --verbosity minimal
 
       - name: Test
-        run: dotnet test test/Soenneker.Utils.Delay.Tests/Soenneker.Utils.Delay.Tests.csproj --configuration Release --no-build --no-restore --verbosity minimal
+        run: dotnet test --project test/Soenneker.Utils.Delay.Tests/Soenneker.Utils.Delay.Tests.csproj --configuration Release --no-build --no-restore --verbosity minimal
 
       - name: Pack
         run: dotnet pack src/Soenneker.Utils.Delay/Soenneker.Utils.Delay.csproj --configuration Release --no-build --no-restore --output . --verbosity minimal
