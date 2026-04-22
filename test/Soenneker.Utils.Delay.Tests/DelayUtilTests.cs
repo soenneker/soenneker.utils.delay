@@ -1,15 +1,14 @@
-﻿using Xunit;
 
 namespace Soenneker.Utils.Delay.Tests;
 
-[Collection("Collection")]
+[ClassDataSource<Host>(Shared = SharedType.PerTestSession)]
 public class DelayUtilTests
 {
     public DelayUtilTests()
     {
     }
 
-    [Fact]
+    [Test]
     public void Default()
     {
 
