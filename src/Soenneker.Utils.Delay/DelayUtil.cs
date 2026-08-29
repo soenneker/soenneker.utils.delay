@@ -26,6 +26,7 @@ public static class DelayUtil
     /// <summary>
     /// Asynchronously delays execution for the specified time.
     /// </summary>
+    /// <returns>Asynchronously delays execution for the specified time.</returns>
     public static ValueTask Delay(int milliseconds, ILogger? logger = null, CancellationToken cancellationToken = default)
     {
         if (logger != null)
@@ -40,6 +41,7 @@ public static class DelayUtil
     /// <summary>
     /// Asynchronously delays execution for the specified timespan.
     /// </summary>
+    /// <returns>Asynchronously delays execution for the specified timespan.</returns>
     public static ValueTask Delay(TimeSpan delay, ILogger? logger = null, CancellationToken cancellationToken = default)
     {
         if (logger != null)
@@ -72,6 +74,7 @@ public static class DelayUtil
     /// <summary>
     /// Asynchronously delays execution with a random jitter to prevent synchronized waits.
     /// </summary>
+    /// <returns>Asynchronously delays execution with a random jitter to prevent synchronized waits.</returns>
     public static ValueTask DelayWithJitter(int baseMilliseconds, ILogger? logger = null, double jitterFactor = 0.5,
         CancellationToken cancellationToken = default)
     {
@@ -98,6 +101,7 @@ public static class DelayUtil
     /// <summary>
     /// Asynchronously delays execution using an integer-based exponential backoff strategy.
     /// </summary>
+    /// <returns>Asynchronously delays execution using an integer-based exponential backoff strategy.</returns>
     public static ValueTask DelayWithBackoff(int attempt, ILogger? logger = null, int baseDelayMs = 1000, int maxDelayMs = 30000,
         CancellationToken cancellationToken = default)
     {
@@ -132,6 +136,7 @@ public static class DelayUtil
     /// <summary>
     /// Asynchronously delays execution for the specified number of seconds (fractional allowed).
     /// </summary>
+    /// <returns>Asynchronously delays execution for the specified number of seconds (fractional allowed).</returns>
     public static ValueTask DelaySeconds(double seconds, ILogger? logger = null, CancellationToken cancellationToken = default)
     {
         if (logger != null)
@@ -153,6 +158,7 @@ public static class DelayUtil
     /// Asynchronously delays until the specified UTC DateTimeOffset.
     /// If targetUtc ≤ now, returns immediately.
     /// </summary>
+    /// <returns>Asynchronously delays until the specified UTC DateTimeOffset. If targetUtc ≤ now, returns immediately.</returns>
     public static ValueTask DelayUntil(DateTimeOffset target, ILogger? logger = null, CancellationToken cancellationToken = default)
     {
         DateTimeOffset now = DateTimeOffset.UtcNow;
@@ -179,6 +185,7 @@ public static class DelayUtil
     /// <summary>
     /// Asynchronously delays execution for a random duration between minMs and maxMs.
     /// </summary>
+    /// <returns>Asynchronously delays execution for a random duration between minMs and maxMs.</returns>
     public static ValueTask DelayRandomRange(int minMilliseconds, int maxMilliseconds, ILogger? logger = null, CancellationToken cancellationToken = default)
     {
         // normalize negatives to 0ms
