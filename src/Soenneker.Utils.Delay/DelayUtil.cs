@@ -57,7 +57,7 @@ public static class DelayUtil
     /// Blocks the calling thread for the specified number of milliseconds, optionally logging the delay using the
     /// provided logger.
     /// </summary>
-    /// <remarks>This method performs a synchronous, blocking delay using <see cref="Thread.Sleep"/>. If a
+    /// <remarks>This method performs a synchronous, blocking delay using <see cref="Thread.Sleep(int)"/>. If a
     /// logger is provided, the delay duration is logged before blocking. Use with caution in performance-sensitive or
     /// UI contexts, as blocking the thread may impact responsiveness.</remarks>
     /// <param name="milliseconds">The number of milliseconds for which the thread is blocked. Must be zero or greater.</param>
@@ -78,7 +78,7 @@ public static class DelayUtil
     public static ValueTask DelayWithJitter(int baseMilliseconds, ILogger? logger = null, double jitterFactor = 0.5,
         CancellationToken cancellationToken = default)
     {
-        if (baseMilliseconds <= 0 || jitterFactor <= 0)
+        if (baseMilliseconds <= 0 || jitterFactor <= 0 || double.IsNaN(jitterFactor))
         {
             if (logger != null)
                 DelayLog.DelayingSeconds(logger, baseMilliseconds * _msToSeconds);
@@ -90,7 +90,7 @@ public static class DelayUtil
             jitterFactor = 1d;
 
         var jitterMs = (int)(RandomUtil.NextDouble() * (baseMilliseconds * jitterFactor));
-        int finalDelay = baseMilliseconds + jitterMs;
+        int finalDelay = (int)Math.Min((long)baseMilliseconds + jitterMs, int.MaxValue);
 
         if (logger != null)
             DelayLog.DelayingWithJitterSeconds(logger, finalDelay * _msToSeconds);
@@ -120,8 +120,8 @@ public static class DelayUtil
         }
         else
         {
-            int shifted = baseDelayMs << attempt;
-            delay = shifted >= maxDelayMs ? maxDelayMs : shifted;
+            long shifted = (long)baseDelayMs << attempt;
+            delay = shifted >= maxDelayMs ? maxDelayMs : (int)shifted;
         }
 
         if (logger != null)
@@ -191,7 +191,7 @@ public static class DelayUtil
         // normalize negatives to 0ms
         minMilliseconds = ClampNonNegative(minMilliseconds);
 
-        int span = maxMilliseconds - minMilliseconds;
+        long span = (long)maxMilliseconds - minMilliseconds;
 
         int finalDelay;
         if (span <= 0)
@@ -200,8 +200,8 @@ public static class DelayUtil
         }
         else
         {
-            int jitter = RandomUtil.Next(span + 1);
-            finalDelay = minMilliseconds + jitter;
+            long jitter = (long)(RandomUtil.NextDouble() * (span + 1d));
+            finalDelay = (int)(minMilliseconds + jitter);
         }
 
         if (logger != null)
