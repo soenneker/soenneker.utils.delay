@@ -45,6 +45,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Soenneker.Utils.Random" Version="4.0.145" />
+        <PackageReference Include="Soenneker.Utils.Random" Version="4.0.146" />
     </ItemGroup>
 </Project>
